@@ -6,7 +6,11 @@
 
     <groupId>com.bigdata.zfq</groupId>
     <artifactId>Challenge_The_Big_Factory</artifactId>
+    <packaging>pom</packaging>
     <version>1.0-SNAPSHOT</version>
+    <modules>
+        <module>flinkcdc</module>
+    </modules>
 
 
 </project>
