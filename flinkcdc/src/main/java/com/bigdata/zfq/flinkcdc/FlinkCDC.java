@@ -5,7 +5,7 @@ import com.ververica.cdc.connectors.mysql.MySqlSource;
 import com.ververica.cdc.connectors.mysql.table.StartupOptions;
 import com.ververica.cdc.debezium.DebeziumSourceFunction;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
-import org.apache.flink.runtime.state.filesystem.FsStateBackend;
+import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.CheckpointConfig;
@@ -35,7 +35,7 @@ public class FlinkCDC {
         env.setRestartStrategy(RestartStrategies.fixedDelayRestart(3, 2000L));
         //设置状态后端
         //客户端访问集群端口 9000 3.x 8020
-        env.setStateBackend(new FsStateBackend("hdfs://mycluster/flinkCDC"));
+        env.setStateBackend(new RocksDBStateBackend("hdfs://mycluster/flinkCDC",true));
         //设置访问HDFS的用户名
         System.setProperty("HADOOP_USER_NAME", "root");
 
