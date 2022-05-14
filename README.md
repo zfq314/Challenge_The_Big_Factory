@@ -386,3 +386,10 @@ ORDER BY
 table_name
 ```
 
+### githup修改别的框架的源码，先fork，然后自定义修改
+
+```
+A fork is a copy of a repository. Forking a repository allows you to freely experiment with changes without affecting the original project
+分叉是存储库的副本。分叉存储库允许您在不影响原始项目的情况下自由试验更改
+```
+
