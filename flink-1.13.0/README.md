@@ -176,6 +176,107 @@ env.setRuntimeMode(RuntimeExecutionMode.BATCH);
 需要注意的是，写完输出（sink）操作并不代表程序已经结束。因为当main()方法被调用时，其实只是定义了作业的每个执行操作，然后添加到数据流图中；这时并没有真正处理数据——因为数据可能还没来。Flink是由事件驱动的，只有等到数据到来，才会触发真正的计算，这也被称为“延迟执行”或“懒执行”（lazy execution）。
 所以我们需要显式地调用执行环境的execute()方法，来触发程序执行。execute()方法将一直等待作业完成，然后返回一个执行结果（JobExecutionResult）。
 env.execute();
+```
+
+#### 5.2 源算子（Source）
+
+```
+5.2.7  Flink支持的数据类型
+我们已经了解了Flink怎样从不同的来源读取数据。在之前的代码中，我们的数据都是定义好的UserBehavior类型，而且在5.2.1小节中特意说明了对这个类的要求。那还有没有其他更灵活的类型可以用呢？Flink支持的数据类型到底有哪些？
+
+1. Flink的类型系统
+   为什么会出现“不支持”的数据类型呢？因为Flink作为一个分布式处理框架，处理的是以数据对象作为元素的流。如果用水流来类比，那么我们要处理的数据元素就是随着水流漂动的物体。在这条流动的河里，可能漂浮着小木块，也可能行驶着内部错综复杂的大船。要分布式地处理这些数据，就不可避免地要面对数据的网络传输、状态的落盘和故障恢复等问题，这就需要对数据进行序列化和反序列化。小木块是容易序列化的；而大船想要序列化之后传输，就需要将它拆解、清晰地知道其中每一个零件的类型。
+   为了方便地处理数据，Flink有自己一整套类型系统。Flink使用“类型信息”（TypeInformation）来统一表示数据类型。TypeInformation类是Flink中所有类型描述符的基类。它涵盖了类型的一些基本属性，并为每个数据类型生成特定的序列化器、反序列化器和比较器。
+2. Flink支持的数据类型
+   简单来说，对于常见的Java和Scala数据类型，Flink都是支持的。Flink在内部，Flink对支持不同的类型进行了划分，这些类型可以在Types工具类中找到：
+   （1）基本类型
+   所有Java基本类型及其包装类，再加上Void、String、Date、BigDecimal和BigInteger。
+   （2）数组类型
+   包括基本类型数组（PRIMITIVE_ARRAY）和对象数组(OBJECT_ARRAY)
+   （3）复合数据类型
+   	Java元组类型（TUPLE）：这是Flink内置的元组类型，是Java API的一部分。最多25个字段，也就是从Tuple0~Tuple25，不支持空字段
+   	Scala 样例类及Scala元组：不支持空字段
+   	行类型（ROW）：可以认为是具有任意个字段的元组,并支持空字段
+   	POJO：Flink自定义的类似于Java bean模式的类
+   （4）辅助类型
+   Option、Either、List、Map等
+   （5）泛型类型（GENERIC）
+   Flink支持所有的Java类和Scala类。不过如果没有按照上面POJO类型的要求来定义，就会被Flink当作泛型类来处理。Flink会把泛型类型当作黑盒，无法获取它们内部的属性；它们也不是由Flink本身序列化的，而是由Kryo序列化的。
+   在这些类型中，元组类型和POJO类型最为灵活，因为它们支持创建复杂类型。而相比之下，POJO还支持在键（key）的定义中直接使用字段名，这会让我们的代码可读性大大增加。所以，在项目实践中，往往会将流处理程序中的元素类型定为Flink的POJO类型。
+   Flink对POJO类型的要求如下：
+   	类是公共的（public）和独立的（standalone，也就是说没有非静态的内部类）；
+   	类有一个公共的无参构造方法；
+   	类中的所有字段是public且非final的；或者有一个公共的getter和setter方法，这些方法需要符合Java bean的命名规范。
+   所以我们看到，之前的UserBehavior，就是我们创建的符合Flink POJO定义的数据类型。
+3. 类型提示（Type Hints）
+   Flink还具有一个类型提取系统，可以分析函数的输入和返回类型，自动获取类型信息，从而获得对应的序列化器和反序列化器。但是，由于Java中泛型擦除的存在，在某些特殊情况下（比如Lambda表达式中），自动提取的信息是不够精细的——只告诉Flink当前的元素由“船头、船身、船尾”构成，根本无法重建出“大船”的模样；这时就需要显式地提供类型信息，才能使应用程序正常工作或提高其性能。
+   为了解决这类问题，Java API提供了专门的“类型提示”（type hints）。
+   回忆一下之前的word count流处理程序，我们在将String类型的每个词转换成（word， count）二元组后，就明确地用returns指定了返回的类型。因为对于map里传入的Lambda表达式，系统只能推断出返回的是Tuple2类型，而无法得到Tuple2<String, Long>。只有显式地告诉系统当前的返回类型，才能正确地解析出完整数据。
+   .map(word -> Tuple2.of(word, 1L))
+   .returns(Types.TUPLE(Types.STRING, Types.LONG));
+   这是一种比较简单的场景，二元组的两个元素都是基本数据类型。那如果元组中的一个元素又有泛型，该怎么处理呢？
+   Flink专门提供了TypeHint类，它可以捕获泛型的类型信息，并且一直记录下来，为运行时提供足够的信息。我们同样可以通过.returns()方法，明确地指定转换之后的DataStream里元素的类型。
+```
+
+```
+如果source为外面的数据源，需要相应的连接器
+```
+
+#### 5.3 转换算子（Transformation）
+
+```
+所以在Flink中，要做聚合，需要先进行分区；这个操作就是通过keyBy来完成的。
+
+keyBy是聚合前必须要用到的一个算子。keyBy通过指定键（key），可以将一条流从逻辑上划分成不同的分区（partitions）。这里所说的分区，其实就是并行处理的子任务，也就对应着任务槽（task slot）。
+
+在内部，是通过计算key的哈希值（hash code），对分区数进行取模运算来实现的。所以这里key如果是POJO的话，必须要重写hashCode()方法。
+keyBy()方法需要传入一个参数，这个参数指定了一个或一组key。有很多不同的方法来指定key：比如对于Tuple数据类型，可以指定字段的位置或者多个位置的组合；对于POJO类型，可以指定字段的名称（String）；另外，还可以传入Lambda表达式或者实现一个键选择器（KeySelector），用于说明从数据中提取key的逻辑。
+
+简单聚合
+有了按键分区的数据流KeyedStream，我们就可以基于它进行聚合操作了。Flink为我们内置实现了一些最基本、最简单的聚合API，主要有以下几种：
+	sum()：在输入流上，对指定的字段做叠加求和的操作。
+	min()：在输入流上，对指定的字段求最小值。
+	max()：在输入流上，对指定的字段求最大值。
+	minBy()：与min()类似，在输入流上针对指定字段求最小值。不同的是，min()只计算指定字段的最小值，其他字段会保留最初第一个数据的值；而minBy()则会返回包含字段最小值的整条数据。
+	maxBy()：与max()类似，在输入流上针对指定字段求最大值。两者区别与min()/minBy()完全一致。
+```
+
+```
+自定义实现函数
+
+1. 函数类（Function Classes）
+对于大部分操作而言，都需要传入一个用户自定义函数（UDF），实现相关操作的接口，来完成处理逻辑的定义。Flink暴露了所有UDF函数的接口，具体实现方式为接口或者抽象类，例如MapFunction、FilterFunction、ReduceFunction等。
+所以最简单直接的方式，就是自定义一个函数类，实现对应的接口。之前我们对于API的练习，主要就是基于这种方式。
+
+匿名函数（Lambda）
+匿名函数（Lambda表达式）是Java 8 引入的新特性，方便我们更加快速清晰地写代码。 Lambda 表达式允许以简洁的方式实现函数，以及将函数作为参数来进行传递，而不必声明额外的（匿名）类。
+Flink 的所有算子都可以使用 Lambda 表达式的方式来进行编码，但是，当 Lambda 表达式使用 Java 的泛型时，我们需要显式的声明类型信息。
+
+
+泛型信息擦除掉了。这样 Flink 就无法自动推断输出的类型信息了。
+解决方案
+1 // 想要转换成二元组类型，需要进行以下处理
+        // 1) 使用显式的 ".returns(...)"
+        DataStream<Tuple2<String, Long>> stream3 = clicks
+                .map( event -> Tuple2.of(event.user, 1L) )
+                .returns(Types.TUPLE(Types.STRING, Types.LONG));
+        stream3.print();
+2) // 使用类来替代Lambda表达式
+        clicks.map(new MyTuple2Mapper())
+                .print();
+3) //  使用匿名类来代替Lambda表达式
+        clicks.map(new MapFunction<Event, Tuple2<String, Long>>() {
+            @Override
+            public Tuple2<String, Long> map(Event value) throws Exception {
+                return Tuple2.of(value.user, 1L);
+            }
+        }).print();
+4) // 自定义MapFunction的实现类
+    public static class MyTuple2Mapper implements MapFunction<Event, Tuple2<String, Long>>{
+        @Override
+        public Tuple2<String, Long> map(Event value) throws Exception {
+            return Tuple2.of(value.user, 1L);
+        }
 
 ```
 

@@ -20,7 +20,7 @@
         <HikariCP.version>3.2.0</HikariCP.version>
         <Impala.version>2.6.4</Impala.version>
         <kafka.version>2.8.0</kafka.version>
-        <hadoop-versin>2.7.2</hadoop-versin>
+        <hadoop-version>2.7.2</hadoop-version>
         <connector-mysql-cdc-version>2.0.0</connector-mysql-cdc-version>
     </properties>
     <dependencies>
@@ -105,7 +105,7 @@
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-client</artifactId>
-            <version>${hadoop-versin}</version>
+            <version>${hadoop-version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
