@@ -1,4 +1,4 @@
-package com.bigdata.zfq.flink;
+package com.bigdata.zfq.flink.wc;
 
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.ExecutionEnvironment;

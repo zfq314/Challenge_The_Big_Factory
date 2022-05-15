@@ -144,5 +144,38 @@ export HADOOP_CLASSPATH=`hadoop classpath`
  
 ```
 
+### 第5章 DataStream API（基础篇）
 
+#### 5.1 执行环境（Execution Environment）
+
+```
+5.1.1 创建执行环境
+1. getExecutionEnvironment 自适应的自动获取的一个环境 
+2. createLocalEnvironment
+3. createRemoteEnvironment 
+
+5.1.2 执行模式(Execution Mode)
+	批执行模式（BATCH）
+专门用于批处理的执行模式, 这种模式下，Flink处理作业的方式类似于MapReduce框架。对于不会持续计算的有界数据，我们用这种模式处理会更方便。
+	自动模式（AUTOMATIC）
+在这种模式下，将由程序根据输入数据源是否有界，来自动选择执行模式。
+1. BATCH模式的配置方法
+由于Flink程序默认是STREAMING模式，我们这里重点介绍一下BATCH模式的配置。主要有两种方式：
+（1）通过命令行配置
+bin/flink run -Dexecution.runtime-mode=BATCH ...
+在提交作业时，增加execution.runtime-mode参数，指定值为BATCH。
+（2）通过代码配置
+StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+env.setRuntimeMode(RuntimeExecutionMode.BATCH);
+在代码中，直接基于执行环境调用setRuntimeMode方法，传入BATCH模式。
+建议: 不要在代码中配置，而是使用命令行。这同设置并行度是类似的：在提交作业时指定参数可以更加灵活，同一段应用程序写好之后，既可以用于批处理也可以用于流处理。而在代码中硬编码（hard code）的方式可扩展性比较差，一般都不推荐。
+
+5.1.3 触发程序执行
+
+有了执行环境，我们就可以构建程序的处理流程了：基于环境读取数据源，进而进行各种转换操作，最后输出结果到外部系统。
+需要注意的是，写完输出（sink）操作并不代表程序已经结束。因为当main()方法被调用时，其实只是定义了作业的每个执行操作，然后添加到数据流图中；这时并没有真正处理数据——因为数据可能还没来。Flink是由事件驱动的，只有等到数据到来，才会触发真正的计算，这也被称为“延迟执行”或“懒执行”（lazy execution）。
+所以我们需要显式地调用执行环境的execute()方法，来触发程序执行。execute()方法将一直等待作业完成，然后返回一个执行结果（JobExecutionResult）。
+env.execute();
+
+```
 
