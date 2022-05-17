@@ -330,3 +330,16 @@ Flink内部节点之间的通信是用Akka，比如JobManager和TaskManager之�
 Spark用Netty通信框架代替Akka
 ```
 
+#### 5.4 输出算子（Sink）
+
+```
+addSink传入的参数是一个FlinkKafkaProducer。这也很好理解，因为需要向Kafka写入数据，自然应该创建一个生产者。FlinkKafkaProducer继承了抽象类TwoPhaseCommitSinkFunction，这是一个实现了“两阶段提交”的RichSinkFunction。两阶段提交提供了Flink向Kafka写入数据的事务性保证，能够真正做到精确一次（exactly once）的状态一致性。
+```
+
+```
+sink redis
+启动redis：redis-server redis.conf 
+进入客户端：redis-cli
+Flink没有直接提供官方的Redis连接器，不过Bahir项目还是担任了合格的辅助角色，为我们提供了Flink-Redis的连接工具。但版本升级略显滞后，目前连接器版本为1.0，支持的Scala版本最新到2.11。由于我们的测试不涉及到Scala的相关版本变化，所以并不影响使用。在实际项目应用中，应该以匹配的组件版本运行。
+```
+
