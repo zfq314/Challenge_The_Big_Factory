@@ -27,7 +27,7 @@ public class BatchWordCount {
                         out.collect(Tuple2.of(word, 1L));
                     }
                 })
-                //避免类型擦除，显示指定Tuple的元组类型
+                //避免类型擦除，显示指定Tuple的元组类型，一种特殊的方式
                 .returns(Types.TUPLE(Types.STRING, Types.LONG)); //当 Lambda 表达式
 
         // 4. 按照 word 进行分组
