@@ -144,6 +144,8 @@ export HADOOP_CLASSPATH=`hadoop classpath`
  
 ```
 
+### 第4章 Flink运行时架构
+
 ### 第5章 DataStream API（基础篇）
 
 #### 5.1 执行环境（Execution Environment）
@@ -343,3 +345,4 @@ sink redis
 Flink没有直接提供官方的Redis连接器，不过Bahir项目还是担任了合格的辅助角色，为我们提供了Flink-Redis的连接工具。但版本升级略显滞后，目前连接器版本为1.0，支持的Scala版本最新到2.11。由于我们的测试不涉及到Scala的相关版本变化，所以并不影响使用。在实际项目应用中，应该以匹配的组件版本运行。
 ```
 
+### 第6章 Flink中的时间和窗口
