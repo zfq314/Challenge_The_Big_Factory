@@ -346,3 +346,114 @@ Flink没有直接提供官方的Redis连接器，不过Bahir项目还是担任�
 ```
 
 ### 第6章 Flink中的时间和窗口
+
+#### 6.1 时间语义
+
+##### 6.1.1 Flink中的时间语义
+
+```
+1. 处理时间（Processing Time）
+处理时间的概念非常简单，就是指执行处理操作的机器的系统时间。
+2. 事件时间（Event Time）
+事件时间，是指每个事件在对应的设备上发生的时间，也就是数据生成的时间。
+数据一旦产生，这个时间自然就确定了，所以它可以作为一个属性嵌入到数据中。这其实就是这条数据记录的“时间戳”（Timestamp）。
+所以在实际应用中，事件时间语义会更为常见。一般情况下，业务日志数据中都会记录数据生成的时间戳（timestamp），它就可以作为事件时间的判断基础。
+
+另外，除了事件时间和处理时间，Flink还有一个“摄入时间”（Ingestion Time）的概念，它是指数据进入Flink数据流的时间，也就是Source算子读入数据的时间。摄入时间相当于是事件时间和处理时间的一个中和，它是把Source任务的处理时间，当作了数据的产生时间添加到数据里。这样一来，水位线（watermark）也就基于这个时间直接生成，不需要单独指定了。这种时间语义可以保证比较好的正确性，同时又不会引入太大的延迟。它的具体行为跟事件时间非常像，可以当作特殊的事件时间来处理。
+
+在Flink中，由于处理时间比较简单，早期版本默认的时间语义是处理时间；而考虑到事件时间在实际应用中更为广泛，从1.12版本开始，Flink已经将事件时间作为了默认的时间语义。
+```
+
+#### 6.2 水位线（Watermark）
+
+```
+在介绍事件时间语义时，我们提到了“水位线”的概念，已经知道了它其实就是用来度量事件时间的。那么水位线具体有什么含义，又跟数据的时间戳有什么关系呢？接下来我们就来深入探讨一下这个流处理中的核心概念。
+
+在实际应用中，一般会采用事件时间语义。而水位线，就是基于事件时间提出的概念。所以在介绍水位线之前，我们首先来梳理一下事件时间和窗口的关系。
+
+```
+
+##### 6.2.2 什么是水位线
+
+```
+在事件时间语义下，我们不依赖系统时间，而是基于数据自带的时间戳去定义了一个时钟，用来表示当前时间的进展。于是每个并行子任务都会有一个自己的逻辑时钟，它的前进是靠数据的时间戳来驱动的。
+
+但在分布式系统中，这种驱动方式又会有一些问题。因为数据本身在处理转换的过程中会变化，如果遇到窗口聚合这样的操作，其实是要攒一批数据才会输出一个结果，那么下游的数据就会变少，时间进度的控制就不够精细了。另外，数据向下游任务传递时，一般只能传输给一个子任务（除广播外），这样其他的并行子任务的时钟就无法推进了。
+一种简单的想法是，在数据流中加入一个时钟标记，记录当前的事件时间；这个标记可以直接广播到下游，当下游任务收到这个标记，就可以更新自己的时钟了。由于类似于水流中用来做标志的记号，在Flink中，这种用来衡量事件时间（Event Time）进展的标记，就被称作“水位线”（Watermark）。
+
+1. 有序流中的水位线
+在理想状态下，数据应该按照它们生成的先后顺序、排好队进入流中；也就是说，它们处理的过程会保持原先的顺序不变，遵守先来后到的原则。这样的话我们从每个数据中提取时间戳，就可以保证总是从小到大增长的，从而插入的水位线也会不断增长、事件时钟不断向前推进。
+实际应用中，如果当前数据量非常大，可能会有很多数据的时间戳是相同的，这时每来一条数据就提取时间戳、插入水位线就做了大量的无用功。而且即使时间戳不同，同时涌来的数据时间差会非常小（比如几毫秒），往往对处理计算也没什么影响。所以为了提高效率，一般会每隔一段时间生成一个水位线，这个水位线的时间戳，就是当前最新数据的时间戳
+
+所以对于水位线的周期性生成，周期时间是指处理时间（系统时间），而不是事件时间。
+
+2. 乱序流中的水位线
+有序流的处理非常简单，看起来水位线也并没有起到太大的作用。但这种情况只存在于理想状态下。我们知道在分布式系统中，数据在节点间传输，会因为网络传输延迟的不确定性，导致顺序发生改变，这就是所谓的“乱序数据”。
+这里所说的“乱序”（out-of-order），是指数据的先后顺序不一致，主要就是基于数据的产生时间而言的
+我们插入新的水位线时，要先判断一下时间戳是否比之前的大，否则就不再生成新的水位线，
+
+
+3. 水位线的特性
+现在我们可以知道，水位线就代表了当前的事件时间时钟，而且可以在数据的时间戳基础上加一些延迟来保证不丢数据，这一点对于乱序流的正确处理非常重要。
+我们可以总结一下水位线的特性：
+	水位线是插入到数据流中的一个标记，可以认为是一个特殊的数据
+	水位线主要的内容是一个时间戳，用来表示当前事件时间的进展
+	水位线是基于数据的时间戳生成的
+	水位线的时间戳必须单调递增，以确保任务的事件时间时钟一直向前推进
+	水位线可以通过设置延迟，来保证正确处理乱序数据
+	一个水位线Watermark(t)，表示在当前流中事件时间已经达到了时间戳t, 这代表t之前的所有数据都到齐了，之后流中不会出现时间戳t’ ≤ t的数据
+水位线是Flink流处理中保证结果正确性的核心机制，它往往会跟窗口一起配合，完成对乱序数据的正确处理。
+
+```
+
+##### 6.2.3 如何生成水位线
+
+```
+2. 水位线生成策略（Watermark Strategies）
+在Flink的DataStream API中，有一个单独用于生成水位线的方法：.assignTimestampsAndWatermarks()，它主要用来为流中的数据分配时间戳，并生成水位线来指示事件时间：
+public SingleOutputStreamOperator<T> assignTimestampsAndWatermarks(
+        WatermarkStrategy<T> watermarkStrategy)
+具体使用时，直接用DataStream调用该方法即可，与普通的transform方法完全一样。
+DataStream<Event> stream = env.addSource(new ClickSource());
+DataStream<Event> withTimestampsAndWatermarks = 
+stream.assignTimestampsAndWatermarks(<watermark strategy>);
+这里读者可能有疑惑：不是说数据里已经有时间戳了吗，为什么这里还要“分配”呢？这是因为原始的时间戳只是写入日志数据的一个字段，如果不提取出来并明确把它分配给数据，Flink是无法知道数据真正产生的时间的。当然，有些时候数据源本身就提供了时间戳信息，比如读取Kafka时，我们就可以从Kafka数据中直接获取时间戳，而不需要单独提取字段分配了。
+.assignTimestampsAndWatermarks()方法需要传入一个WatermarkStrategy作为参数，这就是所谓的“水位线生成策略”。WatermarkStrategy中包含了一个“时间戳分配器”TimestampAssigner和一个“水位线生成器”WatermarkGenerator。
+public interface WatermarkStrategy<T> 
+    extends TimestampAssignerSupplier<T>,
+            WatermarkGeneratorSupplier<T>{
+
+    @Override
+    TimestampAssigner<T> createTimestampAssigner(TimestampAssignerSupplier.Context context);
+
+    @Override
+    WatermarkGenerator<T> createWatermarkGenerator(WatermarkGeneratorSupplier.Context context);
+}
+	TimestampAssigner：主要负责从流中数据元素的某个字段中提取时间戳，并分配给元素。时间戳的分配是生成水位线的基础。
+	WatermarkGenerator：主要负责按照既定的方式，基于时间戳生成水位线。在WatermarkGenerator接口中，主要又有两个方法：onEvent()和onPeriodicEmit()。
+	onEvent：每个事件（数据）到来都会调用的方法，它的参数有当前事件、时间戳，以及允许发出水位线的一个WatermarkOutput，可以基于事件做各种操作
+	onPeriodicEmit：周期性调用的方法，可以由WatermarkOutput发出水位线。周期时间为处理时间，可以调用环境配置的.setAutoWatermarkInterval()方法来设置，默认为200ms。
+env.getConfig().setAutoWatermarkInterval(60 * 1000L);
+
+
+3. Flink内置水位线生成器
+WatermarkStrategy这个接口是一个生成水位线策略的抽象，让我们可以灵活地实现自己的需求；但看起来有些复杂，如果想要自己实现应该还是比较麻烦的。好在Flink充分考虑到了我们的痛苦，提供了内置的水位线生成器（WatermarkGenerator），不仅开箱即用简化了编程，而且也为我们自定义水位线策略提供了模板。
+这两个生成器可以通过调用WatermarkStrategy的静态辅助方法来创建。它们都是周期性生成水位线的，分别对应着处理有序流和乱序流的场景。 
+（1）有序流
+对于有序流，主要特点就是时间戳单调增长（Monotonously Increasing Timestamps），所以永远不会出现迟到数据的问题。这是周期性生成水位线的最简单的场景，直接调用WatermarkStrategy.forMonotonousTimestamps()方法就可以实现。简单来说，就是直接拿当前最大的时间戳作为水位线就可以了。
+stream.assignTimestampsAndWatermarks(
+        WatermarkStrategy.<Event>forMonotonousTimestamps()
+                .withTimestampAssigner(new SerializableTimestampAssigner<Event>() {
+                    @Override
+                    public long extractTimestamp(Event element, long recordTimestamp) {
+                        return element.timestamp;
+                    }
+                })
+);
+上面代码中我们调用.withTimestampAssigner()方法，将数据中的timestamp字段提取出来，作为时间戳分配给数据元素；然后用内置的有序流水位线生成器构造出了生成策略。这样，提取出的数据时间戳，就是我们处理计算的事件时间。
+这里需要注意的是，时间戳和水位线的单位，必须都是毫秒。
+（2）乱序流
+由于乱序流中需要等待迟到数据到齐，所以必须设置一个固定量的延迟时间（Fixed Amount of Lateness）。这时生成水位线的时间戳，就是当前数据流中最大的时间戳减去延迟的结果，相当于把表调慢，当前时钟会滞后于数据的最大时间戳。调用WatermarkStrategy. forBoundedOutOfOrderness()方法就可以实现。这个方法需要传入一个maxOutOfOrderness参数，表示“最大乱序程度”，它表示数据流中乱序数据时间戳的最大差值；如果我们能确定乱序程度，那么设置对应时间长度的延迟，就可以等到所有的乱序数据了。
+
+```
+
