@@ -121,7 +121,7 @@
             <artifactId>flink-connector-hbase-1.4_${scala.binary.version}</artifactId>
             <version>${flink.version}</version>
         </dependency>
-        <!--        这里主要添加的依赖是一个“计划器”（planner），它是Table API的核心组件，负责提供运行时环境，
+        <!-- 这里主要添加的依赖是一个“计划器”（planner），它是Table API的核心组件，负责提供运行时环境，
         并生成程序的执行计划。这里我们用到的是新版的blink planner。由于Flink安装包的lib目录下会自带planner，
         所以在生产集群环境中提交的作业不需要打包这个依赖。
         而在Table API的内部实现上，部分相关的代码是用 Scala 实现的，所以还需要额外添加一个Scala版流处理的相关依赖。
