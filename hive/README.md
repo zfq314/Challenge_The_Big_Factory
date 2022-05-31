@@ -166,3 +166,15 @@ load data [local] inpath '数据的path' [overwrite] into table student [partiti
 create table if not exists student3 as select id, name from student;
 ```
 
+#### hive-sql
+
+```sql
+行数：select count(*) from emp;
+cast: select cast(avg(sal) as decimal(18,3)) as avg_sal  from emp;
+min : select min(sal) as min_sal from emp;
+max : select max(sal) as max_sal from emp;
+avg : select avg(sal) as avg_sal from emp;
+sum : select sum(sal) as sum_sal from emp;
+limit : select * from emp limit 3;
+```
+
