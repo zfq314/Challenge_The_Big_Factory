@@ -39,6 +39,7 @@ public class Flink2kafka {
         //查看所有的topic
         //kafak-topic.sh --zookeeper hadoop31:2181 --list
         //kafka-console-consumer.sh --bootstrap-server hadoop31:9092 --topic qrtz_scheduler_state --from-beginning
+        //公司提交代码
     }
 
 }
