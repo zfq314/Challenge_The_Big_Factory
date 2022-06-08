@@ -27,8 +27,9 @@ awk 获取某一行 ifconfig |awk 'NR==2'
 linux ip 获取 : 
                 ifconfig|awk 'NR==2'|awk -F " " '{print$2}'
                 'NR==2' 指定行数,这个方式不太靠谱
-                ifconfig |grep -i "inet"|grep -i "netmask"|awk -F " " '{print$2}'|grep -v '^127' -- grep -v 正则匹配忽略某个字符串开				头的
-                [root@hadoop31 ~]# ifconfig |grep -i "inet"|grep -i "netmask"|cut -d " " -f10|awk 'NR==1'
+                ifconfig |grep -i "inet"|grep -i "netmask"|awk -F " " '{print$2}'|grep -v '^127' -- grep -v 正则匹配忽略某个字符串开头的
+         
+        [root@hadoop31 ~]# ifconfig |grep -i "inet"|grep -i "netmask"|cut -d " " -f10|awk 'NR==1'
 				10.10.80.31
 				[root@hadoop31 ~]# ifconfig |grep -i "inet"|grep -i "netmask"|cut -d " " -f10|grep -v '127'
 				10.10.80.31
@@ -39,5 +40,9 @@ linux ip 获取 :
                 sed -i 's/cc/CC/g' sed.txt
                 cut -d "自定义分隔符" -f1 第几列
                 awk 'NR==2' -F "分隔符" '{print$2}'获取第几列
+
+
+修改权限的属于者：chown -R root:root /data/progream/datax
+
 ```
 
