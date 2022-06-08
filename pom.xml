@@ -12,6 +12,7 @@
         <module>flinkcdc</module>
         <module>flink-1.13.0</module>
         <module>hive</module>
+        <module>linux</module>
     </modules>
 
 
