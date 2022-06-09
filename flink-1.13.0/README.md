@@ -457,3 +457,46 @@ stream.assignTimestampsAndWatermarks(
 
 ```
 
+##### watermark机制
+
+```
+Watermark是用于处理乱序事件的，用于衡量Event Time进展的机制。watermark可以翻译为水位线。
+
+```
+
+##### Watermark的核心原理
+
+```
+Watermark的核心本质可以理解成一个延迟触发机制。  
+
+在 Flink 的窗口处理过程中，如果确定全部数据到达，就可以对 Window 的所有数据做 窗口计算操作（如汇总、分组等），如果数据没有全部到达，则继续等待该窗口中的数据全 部到达才开始处理。这种情况下就需要用到水位线（WaterMarks）机制，它能够衡量数据处 理进度（表达数据到达的完整性），保证事件数据（全部）到达 Flink 系统，或者在乱序及 延迟到达时，也能够像预期一样计算出正确并且连续的结果。当任何 Event 进入到 Flink 系统时，会根据当前最大事件时间产生 Watermarks 时间戳。
+那么 Flink 是怎么计算 Watermak 的值呢？
+
+Watermark =进入Flink 的最大的事件时间(mxtEventTime)-指定的延迟时间(t)
+那么有 Watermark 的 Window 是怎么触发窗口函数的呢？  
+如果有窗口的停止时间等于或者小于 maxEventTime - t(当时的warkmark)，那么这个窗口被触发执行。
+其核心处理流程如下图所示。
+```
+
+![img](https://ask.qcloudimg.com/http-save/5642295/566ygbtca7.jpeg?imageView2/2/w/1620)
+
+##### 二、Watermark的三种使用情况
+
+##### 1、本来有序的Stream中的 Watermark
+
+```
+如果数据元素的事件时间是有序的，Watermark 时间戳会随着数据元素的事件时间按顺 序生成，此时水位线的变化和事件时间保持一直（因为既然是有序的时间，就不需要设置延迟了，那么t就是 0。所以 watermark=maxtime-0 = maxtime），也就是理想状态下的水位 线。当 Watermark 时间大于 Windows 结束时间就会触发对 Windows 的数据计算，以此类推， 下一个 Window 也是一样。**这种情况其实是乱序数据的一种特殊情况。**
+```
+
+##### 2、乱序事件中的Watermark
+
+```
+现实情况下数据元素往往并不是按照其产生顺序接入到 Flink 系统中进行处理，而频繁 出现乱序或迟到的情况，这种情况就需要使用 Watermarks 来应对。比如下图，设置延迟时间t为2。
+```
+
+##### 3、并行数据流中的Watermark
+
+```
+在多并行度的情况下，Watermark 会有一个对齐机制，这个对齐机制会取所有 Channel 中最小的 Watermark。
+```
+
