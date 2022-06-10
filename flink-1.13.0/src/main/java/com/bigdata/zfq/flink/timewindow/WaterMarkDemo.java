@@ -57,8 +57,8 @@ public class WaterMarkDemo {
             public String getKey(StationLog value)  {
                 return value.getStationID();//按照基站分组
             }
-        }).timeWindow(Time.seconds(5))//设置事件窗口
-                .reduce(new MyReduceFunction(), new MyProcessWindows()).print();
+        }).timeWindow(Time.seconds(5))//设置事件窗口窗口分配器
+                .reduce(new MyReduceFunction(), new MyProcessWindows()).print(); //窗口函数
 
         executionEnvironment.execute();
 
