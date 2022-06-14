@@ -393,3 +393,9 @@ A fork is a copy of a repository. Forking a repository allows you to freely expe
 分叉是存储库的副本。分叉存储库允许您在不影响原始项目的情况下自由试验更改
 ```
 
+### hadoop非官方推荐版本资源下载方式
+
+```
+https://hadoop.apache.org/release/
+```
+

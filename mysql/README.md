@@ -607,3 +607,21 @@ VAR引号不可丢，SQL高级也不难！
 ```
 
 ![在这里插入图片描述](https://img-blog.csdnimg.cn/3b894cbfce1a4bd0b29662d0b51a6930.png?x-oss-process=image/watermark,type_ZHJvaWRzYW5zZmFsbGJhY2s,shadow_50,text_Q1NETiBA5rKJ5rO9wrc=,size_20,color_FFFFFF,t_70,g_se,x_16)
+
+##### mysql一列多值改成多行,借助msyql的系统函数
+
+```sql
+select t.*,
+substring_index(substring_index(technology_purity_identity,',',b.help_topic_id+1),',',-1) as purity_jq from (
+select 
+			a.*, -- 1,2,3 technology_purity_identity 值
+			b.showroom_name 
+	from t_fast_customer a left join t_showroom b on a.showroom_identity=b.showroom_identity
+	where a.customer_code='KH003975' and b.showroom_identity='ba4ead54-decc-11ea-9cfd-aecc6b4ae066'
+)t
+join
+  mysql.help_topic b
+  on b.help_topic_id < (length(t.technology_purity_identity) - length(replace(t.technology_purity_identity,',',''))+1) 
+```
+
+​	
