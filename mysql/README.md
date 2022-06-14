@@ -624,4 +624,10 @@ join
   on b.help_topic_id < (length(t.technology_purity_identity) - length(replace(t.technology_purity_identity,',',''))+1) 
 ```
 
-​	
+##### 	mysql exists
+
+```sql
+select exists (select * from t_showroom where showroom_name='fq展厅'); -- exists(true)-1/0    exists(true)-1->1 exists(true)-0->0
+select exists (select * from t_showroom where showroom_name='深圳展厅'); -- exists(true)-1/0    exists(true)-1->1 exists(true)-0->0		
+```
+
