@@ -15,6 +15,7 @@
         <module>linux</module>
         <module>mysql</module>
         <module>data_warehouse</module>
+        <module>zookeeper</module>
     </modules>
 
 

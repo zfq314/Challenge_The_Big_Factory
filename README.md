@@ -8,8 +8,8 @@ tail -200000f yarn-root-resourcemanager-hadoop31.log |grep -i error
 
 ### 查看当前目录下所有文件/文件夹的大小 /统计大小
 
-```
-du -sh ./* 
+```shell
+du -sh *  切换到想要的统计的目录
 ```
 
 ### yarn报不健康信息 
