@@ -112,7 +112,7 @@ else
 fi
 ```
 
-### xsync同步脚本
+### xsync同步脚本（文件/目录）
 
 ```sh
 #!/bin/bash
