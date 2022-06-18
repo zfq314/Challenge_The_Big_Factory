@@ -740,5 +740,65 @@ stream.keyBy(...)
 窗口函数中也提供了ReduceFunction：只要基于WindowedStream调用.reduce()方法，然后传入ReduceFunction作为参数，就可以指定以归约两个元素的方式去对窗口中数据进行聚合了。这里的ReduceFunction其实与简单聚合时用到的ReduceFunction是同一个函数类接口，所以使用方式也是完全一样的。
 我们回忆一下，ReduceFunction中需要重写一个reduce方法，它的两个参数代表输入的两个元素，而归约最终输出结果的数据类型，与输入的数据类型必须保持一致。也就是说，中间聚合的状态和输出的结果，都和输入的数据类型是一样的。
 
+聚合函数
+Flink的Window API中的aggregate就提供了这样的操作。直接基于WindowedStream调用.aggregate()方法，就可以定义更加灵活的窗口聚合操作。这个方法需要传入一个AggregateFunction的实现类作为参数。AggregateFunction在源码中的定义如下：
+public interface AggregateFunction<IN, ACC, OUT> extends Function, Serializable {
+    ACC createAccumulator();
+    ACC add(IN value, ACC accumulator);
+    OUT getResult(ACC accumulator);
+    ACC merge(ACC a, ACC b);
+}
+AggregateFunction可以看作是ReduceFunction的通用版本，这里有三种类型：输入类型（IN）、累加器类型（ACC）和输出类型（OUT）。输入类型IN就是输入流中元素的数据类型；累加器类型ACC则是我们进行聚合的中间状态类型；而输出类型当然就是最终计算结果的类型了。
+接口中有四个方法：
+	createAccumulator()：创建一个累加器，这就是为聚合创建了一个初始状态，每个聚合任务只会调用一次。
+	add()：将输入的元素添加到累加器中。这就是基于聚合状态，对新来的数据进行进一步聚合的过程。方法传入两个参数：当前新到的数据value，和当前的累加器accumulator；返回一个新的累加器值，也就是对聚合状态进行更新。每条数据到来之后都会调用这个方法。
+	getResult()：从累加器中提取聚合的输出结果。也就是说，我们可以定义多个状态，然后再基于这些聚合的状态计算出一个结果进行输出。比如之前我们提到的计算平均值，就可以把sum和count作为状态放入累加器，而在调用这个方法时相除得到最终结果。这个方法只在窗口要输出结果时调用。
+	merge()：合并两个累加器，并将合并后的状态作为一个累加器返回。这个方法只在需要合并窗口的场景下才会被调用；最常见的合并窗口（Merging Window）的场景就是会话窗口（Session Windows）。
+所以可以看到，AggregateFunction的工作原理是：首先调用createAccumulator()为任务初始化一个状态(累加器)；而后每来一个数据就调用一次add()方法，对数据进行聚合，得到的结果保存在状态中；等到了窗口需要输出时，再调用getResult()方法得到计算结果。很明显，与ReduceFunction相同，AggregateFunction也是增量式的聚合；而由于输入、中间状态、输出的类型可以不同，使得应用更加灵活方便。
+```
+
+##### 全窗口函数（full window functions）
+
+```
+窗口操作中的另一大类就是全窗口函数。与增量聚合函数不同，全窗口函数需要先收集窗口中的数据，并在内部缓存起来，等到窗口要输出结果的时候再取出数据进行计算。
+很明显，这就是典型的批处理思路了——先攒数据，等一批都到齐了再正式启动处理流程。这样做毫无疑问是低效的：因为窗口全部的计算任务都积压在了要输出结果的那一瞬间，而在之前收集数据的漫长过程中却无所事事。这就好比平时不用功，到考试之前通宵抱佛脚，肯定不如把工夫花在日常积累上。
+那为什么还需要有全窗口函数呢？这是因为有些场景下，我们要做的计算必须基于全部的数据才有效，这时做增量聚合就没什么意义了；另外，输出的结果有可能要包含上下文中的一些信息（比如窗口的起始时间），这是增量聚合函数做不到的。所以，我们还需要有更丰富的窗口计算方式，这就可以用全窗口函数来实现。
+在Flink中，全窗口函数也有两种：WindowFunction和ProcessWindowFunction。
+（1）窗口函数（WindowFunction）
+WindowFunction字面上就是“窗口函数”，它其实是老版本的通用窗口函数接口。我们可以基于WindowedStream调用.apply()方法，传入一个WindowFunction的实现类。
+stream
+    .keyBy(<key selector>)
+    .window(<window assigner>)
+    .apply(new MyWindowFunction());
+这个类中可以获取到包含窗口所有数据的可迭代集合（Iterable），还可以拿到窗口（Window）本身的信息。WindowFunction接口在源码中实现如下：
+public interface WindowFunction<IN, OUT, KEY, W extends Window> extends Function, Serializable {
+void apply(KEY key, W window, Iterable<IN> input, Collector<OUT> out) throws Exception;
+}
+当窗口到达结束时间需要触发计算时，就会调用这里的apply方法。我们可以从input集合中取出窗口收集的数据，结合key和window信息，通过收集器（Collector）输出结果。这里Collector的用法，与FlatMapFunction中相同。
+不过我们也看到了，WindowFunction能提供的上下文信息较少，也没有更高级的功能。事实上，它的作用可以被ProcessWindowFunction全覆盖，所以之后可能会逐渐弃用。一般在实际应用，直接使用ProcessWindowFunction就可以了。
+（2）处理窗口函数（ProcessWindowFunction）
+ProcessWindowFunction是Window API中最底层的通用窗口函数接口。之所以说它“最底层”，是因为除了可以拿到窗口中的所有数据之外，ProcessWindowFunction还可以获取到一个“上下文对象”（Context）。这个上下文对象非常强大，不仅能够获取窗口信息，还可以访问当前的时间和状态信息。这里的时间就包括了处理时间（processing time）和事件时间水位线（event time watermark）。这就使得ProcessWindowFunction更加灵活、功能更加丰富。事实上，ProcessWindowFunction是Flink底层API——处理函数（process function）中的一员。
+
+3. 增量聚合和全窗口函数的结合使用
+我们已经了解了Window API中两类窗口函数的用法，下面我们先来做个简单的总结。
+增量聚合函数处理计算会更高效。举一个最简单的例子，对一组数据求和。大量的数据连续不断到来，全窗口函数只是把它们收集缓存起来，并没有处理；到了窗口要关闭、输出结果的时候，再遍历所有数据依次叠加，得到最终结果。而如果我们采用增量聚合的方式，那么只需要保存一个当前和的状态，每个数据到来时就会做一次加法，更新状态；到了要输出结果的时候，只要将当前状态直接拿出来就可以了。增量聚合相当于把计算量“均摊”到了窗口收集数据的过程中，自然就会比全窗口聚合更加高效、输出更加实时。
+而全窗口函数的优势在于提供了更多的信息，可以认为是更加“通用”的窗口操作。它只负责收集数据、提供上下文相关信息，把所有的原材料都准备好，至于拿来做什么我们完全可以任意发挥。这就使得窗口计算更加灵活，功能更加强大。
+所以在实际应用中，我们往往希望兼具这两者的优点，把它们结合在一起使用。Flink的Window API就给我们实现了这样的用法。
+我们之前在调用WindowedStream的.reduce()和.aggregate()方法时，只是简单地直接传入了一个ReduceFunction或AggregateFunction进行增量聚合。除此之外，其实还可以传入第二个参数：一个全窗口函数，可以是WindowFunction或者ProcessWindowFunction。
+// ReduceFunction与WindowFunction结合
+public <R> SingleOutputStreamOperator<R> reduce(
+        ReduceFunction<T> reduceFunction, WindowFunction<T, R, K, W> function) 
+// ReduceFunction与ProcessWindowFunction结合
+public <R> SingleOutputStreamOperator<R> reduce(
+        ReduceFunction<T> reduceFunction, ProcessWindowFunction<T, R, K, W> function)
+// AggregateFunction与WindowFunction结合
+public <ACC, V, R> SingleOutputStreamOperator<R> aggregate(
+        AggregateFunction<T, ACC, V> aggFunction, WindowFunction<V, R, K, W> windowFunction)
+// AggregateFunction与ProcessWindowFunction结合
+public <ACC, V, R> SingleOutputStreamOperator<R> aggregate(
+        AggregateFunction<T, ACC, V> aggFunction,
+        ProcessWindowFunction<V, R, K, W> windowFunction)
+这样调用的处理机制是：基于第一个参数（增量聚合函数）来处理窗口数据，每来一个数据就做一次聚合；等到窗口需要触发计算时，则调用第二个参数（全窗口函数）的处理逻辑输出结果。需要注意的是，这里的全窗口函数就不再缓存所有数据了，而是直接将增量聚合函数的结果拿来当作了Iterable类型的输入。一般情况下，这时的可迭代集合中就只有一个元素了。
+下面我们举一个具体的实例来说明。在网站的各种统计指标中，一个很重要的统计指标就是热门的链接；想要得到热门的url，前提是得到每个链接的“热门度”。一般情况下，可以用url的浏览量（点击量）表示热门度。我们这里统计10秒钟的url浏览量，每5秒钟更新一次；另外为了更加清晰地展示，还应该把窗口的起始结束时间一起输出。我们可以定义滑动窗口，并结合增量聚合函数和全窗口函数来得到统计结果。
 ```
 
