@@ -384,6 +384,15 @@ WHERE
 table_schema = 'decent_cloud' and table_comment like '%财务平账单%'
 ORDER BY
 table_name
+
+获取mysql 字段
+SELECT CONCAT('"',column_name,'",') AS field  FROM information_schema.COLUMNS WHERE  table_schema='decent_cloud' and table_name = "t_ka_ztkczz" ORDER BY ORDINAL_POSITION asc  
+
+获取sqlserver字段
+ SELECT (COLUMN_NAME+',') AS cloumn   FROM INFORMATION_SCHEMA.columns WHERE TABLE_NAME = 'ZTKCRZZh' 
+ 
+ 清空库中所有表数据
+ SELECT CONCAT('truncate table ',TABLE_NAME,';') AS a FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'decent_cloud' ;
 ```
 
 ### githup修改别的框架的源码，先fork，然后自定义修改

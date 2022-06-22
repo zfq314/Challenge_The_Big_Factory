@@ -44,5 +44,7 @@ linux ip 获取 :
 
 修改权限的属于者：chown -R root:root /data/progream/datax
 
+统计目录文件个数
+ll -l ./|grep "^-"|wc -l
 ```
 
