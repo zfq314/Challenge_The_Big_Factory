@@ -23,7 +23,7 @@ public class Flink2kafka {
                 .username("root")
                 .databaseList("dolphinscheduler")
                 .tableList("dolphinscheduler.qrtz_scheduler_state,dolphinscheduler.t_ds_alert")// 具体的表
-                .deserializer(new JsonDebeziumDeserializationSchema())//序列化方式,也可以子定义序列化方式
+                .deserializer(new My_JsonDebeziumDeserializationSchema())//序列化方式,也可以子定义序列化方式
                 .startupOptions(StartupOptions.latest())
                 .build();
         DataStreamSource dataStreamSource = executionEnvironment.addSource(mysqlSourceFunction);

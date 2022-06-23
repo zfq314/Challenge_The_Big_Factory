@@ -19,7 +19,7 @@ import java.util.HashMap;
  * @version: 1.0
  */
 
-public class JsonDebeziumDeserializationSchema implements DebeziumDeserializationSchema {
+public class My_JsonDebeziumDeserializationSchema implements DebeziumDeserializationSchema {
     @Override
     public void deserialize(SourceRecord sourceRecord, Collector collector) throws Exception {
         HashMap<String, Object> hashMap = new HashMap<String, Object>();
