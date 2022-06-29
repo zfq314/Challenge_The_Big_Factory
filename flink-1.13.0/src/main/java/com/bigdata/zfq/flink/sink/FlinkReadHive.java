@@ -7,13 +7,13 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.catalog.hive.HiveCatalog;
 
 /**
- * @ClassName SinkToHive
+ * @ClassName FlinkReadHive
  * @Description TODO
  * @Author ZFQ
  * @Date 2022/6/28 14:04
  * @Version 1.0
  **/
-public class SinkToHive {
+public class FlinkReadHive {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment executionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment();
         EnvironmentSettings sets  = EnvironmentSettings.newInstance().useBlinkPlanner().inStreamingMode().build();
