@@ -20,10 +20,11 @@ import java.util.concurrent.TimeUnit;
 public class SinkToFile {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setParallelism(8);
+        System.setProperty("HADOOP_USER_NAME","root");
+        env.setParallelism(2);
         DataStreamSource<Event> stream = env.addSource(new ClickSource());
         //指定文件生成策略
-        StreamingFileSink<String> fileSink = StreamingFileSink.<String>forRowFormat(new Path("./output"), new SimpleStringEncoder<>("UTF-8"))
+        StreamingFileSink<String> fileSink = StreamingFileSink.<String>forRowFormat(new Path("hdfs://mycluster/output"), new SimpleStringEncoder<>("UTF-8"))
                 //文件滚动策略
                 .withRollingPolicy(DefaultRollingPolicy.builder()
                         //	至少包含15分钟的数据
@@ -31,7 +32,7 @@ public class SinkToFile {
                         //	文件大小已达到1 GB
                         .withRolloverInterval(TimeUnit.MINUTES.toMillis(15))
                         .withInactivityInterval(TimeUnit.MINUTES.toMillis(5))
-                        .withMaxPartSize(1024 * 1024 * 1024)
+                        .withMaxPartSize(1)
                         .build())
                 .build();
         stream.map(Event::toString).addSink(fileSink);
