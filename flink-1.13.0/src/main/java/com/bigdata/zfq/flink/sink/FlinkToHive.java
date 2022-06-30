@@ -13,6 +13,7 @@ import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.catalog.hive.HiveCatalog;
 
+
 /**
  * @ClassName FlinkToHive
  * @Description TODO
@@ -35,13 +36,17 @@ public class FlinkToHive {
                 .sum(1);
         EnvironmentSettings settings = EnvironmentSettings.newInstance().inStreamingMode().build();
         StreamTableEnvironment tabEnv = StreamTableEnvironment.create(executionEnvironment, settings);
-        HiveCatalog hiveCatalog = new HiveCatalog("myHive", "work_test", "D:\\idea-workspace\\Challenge_The_Big_Factory\\flink-1.13.0\\src\\main\\resources", "1.2.1");
+        String conf = FlinkToHive.class.getClassLoader().getResource("").getPath();
+        String catalogName = "myHive";
+        String defaultDatabase = "work_test";
+        String version = "1.2.1";
+        HiveCatalog hiveCatalog = new HiveCatalog(catalogName, defaultDatabase, conf, version);
         tabEnv.registerCatalog("myHive", hiveCatalog);
         tabEnv.useCatalog("myHive");
         tabEnv.getConfig().setSqlDialect(SqlDialect.HIVE);
         Table table = tabEnv.fromDataStream(streamOperator);
-        tabEnv.createTemporaryView("demo", table);
-        tabEnv.executeSql("select * from demo");
+        Table visitTable = tabEnv.sqlQuery("select * from " + table);
+        tabEnv.toDataStream(visitTable).print();
 
         executionEnvironment.execute();
     }

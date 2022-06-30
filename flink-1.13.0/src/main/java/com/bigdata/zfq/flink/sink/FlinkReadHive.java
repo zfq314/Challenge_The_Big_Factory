@@ -18,7 +18,11 @@ public class FlinkReadHive {
         StreamExecutionEnvironment executionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment();
         EnvironmentSettings sets  = EnvironmentSettings.newInstance().useBlinkPlanner().inStreamingMode().build();
         StreamTableEnvironment table = StreamTableEnvironment.create(executionEnvironment, sets);
-        HiveCatalog hive = new HiveCatalog("myhive", "work_test", "/hive/conf/","1.2.1");
+        String conf = FlinkToHive.class.getClassLoader().getResource("").getPath();
+        String catalogName = "myHive";
+        String defaultDatabase = "work_test";
+        String version = "1.2.1";
+        HiveCatalog hive = new HiveCatalog(catalogName, defaultDatabase, conf,version);
         table.registerCatalog("myhive",hive); //注册hiveCatalog
         table.getConfig().setSqlDialect(SqlDialect.HIVE);
         table.useCatalog("myhive");
