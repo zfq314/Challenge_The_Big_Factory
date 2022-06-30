@@ -49,9 +49,7 @@
             <artifactId>flink-streaming-java_${scala-binary-version}</artifactId>
             <version>${flink.version}</version>
         </dependency>
-        <!--这是因为 Flink
-        的架构中使用了 Akka 来实现底层的分布式通信，而 Akka 是用 Scala 开发的。我们本书中用到- -
-        的 Scala 版本为 2.12 -->
+
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-clients_${scala-binary-version}</artifactId>
