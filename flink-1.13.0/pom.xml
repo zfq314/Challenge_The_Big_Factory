@@ -17,7 +17,7 @@
     </properties>
 
     <dependencies>
-        <!--  读取kafka中的数据 to kafka -->
+        <!--读取kafka中的数据 to kafka -->
         <dependency>
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-connector-kafka_${scala-binary-version}</artifactId>
