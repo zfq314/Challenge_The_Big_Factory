@@ -20,6 +20,7 @@
         <module>data_warehouse</module>
         <module>zookeeper</module>
         <module>algorithm</module>
+        <module>clickhouse</module>
     </modules>
 
     <properties>

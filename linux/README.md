@@ -48,3 +48,11 @@ linux ip 获取 :
 ll -l ./|grep "^-"|wc -l
 ```
 
+```
+系统负载
+uptime
+
+内存使用
+free -mh 
+```
+
