@@ -49,6 +49,7 @@ public class SqlServerSourceExample {
         env.setRestartStrategy(RestartStrategies.fixedDelayRestart(3, 2000L));
         //设置状态后端
         //客户端访问集群端口 9000 3.x 8020
+        // 本地 checkpoint uri file:///D:/idea-workspace/Challenge_The_Big_Factory/checkpoint
         env.setStateBackend(new RocksDBStateBackend("hdfs://mycluster/flinkCDC",true));
         //设置访问HDFS的用户名
         System.setProperty("HADOOP_USER_NAME", "root");

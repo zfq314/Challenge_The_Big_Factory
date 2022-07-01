@@ -28,8 +28,8 @@ public class SinkToFile {
                 //文件滚动策略
                 .withRollingPolicy(DefaultRollingPolicy.builder()
                         //	至少包含15分钟的数据
-                        //	最近5分钟没有收到新的数据
-                        //	文件大小已达到1 GB
+                        //	最近5分钟没有收到新的数据 不活跃时间
+                        //	文件大小已达到1 GB 文件大小
                         .withRolloverInterval(TimeUnit.MINUTES.toMillis(15))
                         .withInactivityInterval(TimeUnit.MINUTES.toMillis(5))
                         .withMaxPartSize(1)
