@@ -222,6 +222,42 @@ order by 设定了分区内的数据按照哪些字段顺序进行有序保存�
 order by是MergeTree中唯一一个必填项，甚至比primary key 还重要，因为当用户不设置主键的情况，很多处理会依照order by的字段进行处理（比如后面会讲的去重和汇总）。
 要求：主键必须是order by字段的前缀字段。
 比如order by 字段是 (id,sku_id)  那么主键必须是id 或者(id,sku_id)
+```
 
+#### 二级索引
+
+```
+目前在ClickHouse的官网上二级索引的功能在v20.1.2.4之前是被标注为实验性的，在这个版本之后默认是开启的。
+set allow_experimental_data_skipping_indices=1;
+error:DB::Exception: Unknown setting allow_experimental_data_skipping_indices. 
+
+创建表
+创建测试表
+create table t_order_mt2(
+    id UInt32,
+    sku_id String,
+    total_amount Decimal(16,2),
+    create_time  Datetime,
+	INDEX a total_amount TYPE minmax GRANULARITY 5
+ ) engine =MergeTree
+   partition by toYYYYMMDD(create_time)
+   primary key (id)
+   order by (id, sku_id);
+
+sublime 编辑-行操作-合并行
+create table t_order_mt2(id UInt32, sku_id String, total_amount Decimal(16,2), create_time  Datetime, INDEX a total_amount TYPE minmax GRANULARITY 5 ) engine =MergeTree partition by toYYYYMMDD(create_time) primary key (id) order by (id, sku_id);
+
+其中GRANULARITY N 是设定二级索引对于一级索引粒度的粒度。
+
+那么在使用下面语句进行测试，可以看出二级索引能够为非主键字段的查询发挥作用。
+[root@hadoop31 ~]# clickhouse-client --host hadoop31 --port 9933 --password --send_logs_level=trace <<< 'select * from clickhouse.t_order_mt2  where total_amount > toDecimal32(900., 2)';
+
+clickhouse.t_order_mt2 (6c25bbc0-ed95-4b0f-ac25-bbc0ed95fb0f) (SelectExecutor): Index `a` has dropped 1/2 granules.(执行结果)
+```
+
+##### 数据TTL
+
+```
+TTL即Time To Live，MergeTree提供了可以管理数据表或者列的生命周期的功能。
 ```
 
