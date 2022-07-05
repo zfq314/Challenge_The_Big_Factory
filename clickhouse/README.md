@@ -259,5 +259,121 @@ clickhouse.t_order_mt2 (6c25bbc0-ed95-4b0f-ac25-bbc0ed95fb0f) (SelectExecutor): 
 
 ```
 TTL即Time To Live，MergeTree提供了可以管理数据表或者列的生命周期的功能。
+
+1）列级别TTL
+（1）创建测试表
+create table t_order_mt3(id UInt32, sku_id String, total_amount Decimal(16,2)  TTL create_time+interval 10 SECOND, create_time  Datetime ) engine =MergeTree partition by toYYYYMMDD(create_time) primary key (id) order by (id, sku_id);
+
+插入数据
+insert into  t_order_mt3 values
+(106,'sku_001',1000.00,'2020-06-12 22:52:30'),
+(107,'sku_002',2000.00,'2020-06-12 22:52:30'),
+(110,'sku_003',600.00,'2020-06-13 12:00:00');
+手动合并optimize table t_order_mt3 final;
+alter table t_order_mt3 MODIFY TTL create_time + INTERVAL 10 SECOND;
+
+涉及判断的字段必须是Date或者Datetime类型，推荐使用分区的日期字段。
+能够使用的时间周期：
+- SECOND
+- MINUTE
+- HOUR
+- DAY
+- WEEK
+- MONTH
+- QUARTER
+- YEAR
+```
+
+#### ReplacingMergeTree表引擎
+
+```
+ReplacingMergeTree是MergeTree的一个变种，它存储特性完全继承MergeTree，只是多了一个去重的功能。 尽管MergeTree可以设置主键，但是primary key其实没有唯一约束的功能。如果你想处理掉重复的数据，可以借助这个ReplacingMergeTree。
+
+1）去重时机
+数据的去重只会在合并的过程中出现。合并会在未知的时间在后台进行，所以你无法预先作出计划。有一些数据可能仍未被处理。
+2）去重范围
+如果表经过了分区，去重只会在分区内部进行去重，不能执行跨分区的去重。
+所以ReplacingMergeTree能力有限， ReplacingMergeTree 适用于在后台清除重复的数据以节省空间，但是它不保证没有重复的数据出现。
+
+
+案例演示
+（1）创建表
+create table t_order_rmt(
+    id UInt32,
+    sku_id String,
+    total_amount Decimal(16,2) ,
+    create_time  Datetime 
+ ) engine =ReplacingMergeTree(create_time)
+   partition by toYYYYMMDD(create_time)
+   primary key (id)
+   order by (id, sku_id);
+ReplacingMergeTree() 填入的参数为版本字段，重复数据保留版本字段值最大的。
+如果不填版本字段，默认按照插入顺序保留最后一条。   
+
+（2）向表中插入数据
+insert into  t_order_rmt values
+(101,'sku_001',1000.00,'2020-06-01 12:00:00') ,
+(102,'sku_002',2000.00,'2020-06-01 11:00:00'),
+(102,'sku_004',2500.00,'2020-06-01 12:00:00'),
+(102,'sku_002',2000.00,'2020-06-01 13:00:00'),
+(102,'sku_002',12000.00,'2020-06-01 13:00:00'),
+(102,'sku_002',600.00,'2020-06-02 12:00:00');
+合并数据
+OPTIMIZE TABLE t_order_rmt FINAL;
+通过测试得到结论
+	实际上是使用order by 字段作为唯一键
+	去重不能跨分区
+	只有同一批插入（新版本）或合并分区时才会进行去重
+	认定重复的数据保留，版本字段值最大的
+	如果版本字段相同则按插入顺序保留最后一笔
+
+```
+
+####  SummingMergeTree
+
+```
+对于不查询明细，只关心以维度进行汇总聚合结果的场景。如果只使用普通的MergeTree的话，无论是存储空间的开销，还是查询时临时聚合的开销都比较大。
+
+ClickHouse 为了这种场景，提供了一种能够“预聚合”的引擎SummingMergeTree
+
+1）案例演示
+（1）创建表
+create table t_order_smt(
+    id UInt32,
+    sku_id String,
+    total_amount Decimal(16,2) ,
+    create_time Datetime 
+ ) engine =SummingMergeTree(total_amount)
+   partition by toYYYYMMDD(create_time)
+   primary key (id)
+   order by (id,sku_id );
+ （2）插入数据
+insert into  t_order_smt values
+(101,'sku_001',1000.00,'2020-06-01 12:00:00'),
+(102,'sku_002',2000.00,'2020-06-01 11:00:00'),
+(102,'sku_004',2500.00,'2020-06-01 12:00:00'),
+(102,'sku_002',2000.00,'2020-06-01 13:00:00'),
+(102,'sku_002',12000.00,'2020-06-01 13:00:00'),
+(102,'sku_002',600.00,'2020-06-02 12:00:00');
+手动合并
+OPTIMIZE TABLE t_order_smt FINAL;
+select * from t_order_smt;
+
+2）通过结果可以得到以下结论
+	以SummingMergeTree（）中指定的列作为汇总数据列
+	可以填写多列必须数字列，如果不填，以所有非维度列且为数字列的字段为汇总数据列
+	以order by 的列为准，作为维度列
+	其他的列按插入顺序保留第一行
+	不在一个分区的数据不会被聚合
+	只有在同一批次插入(新版本)或分片合并时才会进行聚合
+3）开发建议
+设计聚合表的话，唯一键值、流水号可以去掉，所有字段全部是维度、度量或者时间戳。
+4）问题
+能不能直接执行以下SQL得到汇总值
+select total_amount from  XXX where province_name=’’ and create_date=’xxx’
+不行，可能会包含一些还没来得及聚合的临时明细
+如果要是获取汇总值，还是需要使用sum进行聚合，这样效率会有一定的提高，但本身ClickHouse是列式存储的，效率提升有限，不会特别明显。
+select sum(total_amount) from province_name=’’ and create_date=‘xxx’
+
 ```
 
