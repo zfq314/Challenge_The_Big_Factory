@@ -377,3 +377,94 @@ select sum(total_amount) from province_name=’’ and create_date=‘xxx’
 
 ```
 
+#### SQL操作
+
+```
+Insert
+基本与标准SQL（MySQL）基本一致
+（1）标准
+insert into [table_name] values(…),(….) 
+（2）从表到表的插入
+insert into [table_name] select a,b,c from [table_name_2]
+
+Update 和 Delete
+ClickHouse提供了Delete和Update的能力，这类操作被称为Mutation查询，它可以看做Alter 的一种。
+虽然可以实现修改和删除，但是和一般的OLTP数据库不一样，Mutation语句是一种很“重”的操作，而且不支持事务。
+“重”的原因主要是每次修改或者删除都会导致放弃目标数据的原有分区，重建新分区。所以尽量做批量的变更，不要进行频繁小数据的操作。
+（1）删除操作
+alter table t_order_smt delete where sku_id ='sku_001';
+（2）修改操作
+alter table t_order_smt update total_amount=toDecimal32(2000.00,2) where id =102;
+由于操作比较“重”，所以 Mutation语句分两步执行，同步执行的部分其实只是进行新增数据新增分区和并把旧分区打上逻辑上的失效标记。直到触发分区合并的时候，才会删除旧数据释放磁盘空间，一般不会开放这样的功能给用户，由管理员完成。
+
+
+ClickHouse基本上与标准SQL 差别不大
+	支持子查询
+	支持CTE(Common Table Expression 公用表表达式 with 子句)
+	支持各种JOIN， 但是JOIN操作无法使用缓存，所以即使是两次相同的JOIN语句，ClickHouse也会视为两条新SQL
+	窗口函数(官方正在测试中...)
+	不支持自定义函数
+	GROUP BY 操作增加了 with rollup\with cube\with total 用来计算小计和总计。
+
+
+
+插入数据
+insert into  t_order_mt values (101,'sku_001',1000.00,'2020-06-01 12:00:00'), (101,'sku_002',2000.00,'2020-06-01 12:00:00'), (103,'sku_004',2500.00,'2020-06-01 12:00:00'), (104,'sku_002',2000.00,'2020-06-01 12:00:00'), (105,'sku_003',600.00,'2020-06-02 12:00:00'), (106,'sku_001',1000.00,'2020-06-04 12:00:00'), (107,'sku_002',2000.00,'2020-06-04 12:00:00'), (108,'sku_004',2500.00,'2020-06-04 12:00:00'), (109,'sku_002',2000.00,'2020-06-04 12:00:00'), (110,'sku_003',600.00,'2020-06-01 12:00:00');
+（2）with rollup：从右至左去掉维度进行小计
+select id , sku_id,sum(total_amount) from  t_order_mt group by id,sku_id with rollup;
+
+（3）with cube : 从右至左去掉维度进行小计，再从左至右去掉维度进行小计
+hadoop102 :) select id , sku_id,sum(total_amount) from  t_order_mt group by id,sku_id with cube;
+（4）with totals: 只计算合计
+hadoop102 :) select id , sku_id,sum(total_amount) from  t_order_mt group by id,sku_id with totals;
+ alter操作
+同MySQL的修改字段基本一致
+1）新增字段
+alter table tableName  add column  newcolname  String after col1;
+2）修改字段类型
+alter table tableName modify column newcolname String;
+3）删除字段
+alter table tableName  drop column  newcolname;
+5.5 导出数据
+clickhouse-client --query "select * from t_order_mt where create_time='2020-06-01 12:00:00'" --format CSVWithNames> /opt/module/data/rs1.csv
+```
+
+#### 建表优化
+
+```
+时间字段的类型
+建表时能用数值型或日期时间型表示的字段就不要用字符串，全String类型在以Hive为中心的数仓建设中常见，但ClickHouse环境不应受此影响。
+虽然ClickHouse底层将DateTime存储为时间戳Long类型，但不建议存储Long类型，因为DateTime不需要经过函数转换处理，执行效率高、可读性好。
+create table t_type2(
+    id UInt32,
+    sku_id String,
+    total_amount Decimal(16,2) ,
+    create_time  Int32  
+ ) engine =ReplacingMergeTree(create_time)
+   partition by toYYYYMMDD(toDate(create_time)) –-需要转换一次，否则报错
+   primary key (id)
+   order by (id, sku_id);
+空值存储类型
+官方已经指出Nullable类型几乎总是会拖累性能，因为存储Nullable列时需要创建一个额外的文件来存储NULL的标记，并且Nullable列无法被索引。因此除非极特殊情况，应直接使用字段默认值表示空，或者自行指定一个在业务中无意义的值（例如用-1表示没有商品ID）。
+CREATE TABLE t_null(x Int8, y Nullable(Int8)) ENGINE TinyLog;
+INSERT INTO t_null VALUES (1, NULL), (2, 3);
+SELECT x + y FROM t_null;
+
+```
+
+#### 分区和索引
+
+```
+分区粒度根据业务特点决定，不宜过粗或过细。一般选择**按天分区**，也可以指定为Tuple()，以单表一亿数据为例，分区大小控制在10-30个为最佳。
+
+必须指定索引列，ClickHouse中的索引列即排序列，通过order by指定，一般在查询条件中经常被用来充当筛选条件的属性被纳入进来；可以是单一维度，也可以是组合维度的索引；通常需要满足高级列在前、查询频率大的在前原则；还有基数特别大的不适合做索引列，如用户表的userid字段；通常**筛选后的数据满足在百万以内为最佳**。
+```
+
+#### 写入和删除优化
+
+```
+（1）尽量不要执行单条或小批量删除和插入操作，这样会产生小分区文件，给后台Merge任务带来巨大压力
+
+（2）不要一次写入太多分区，或数据写入太快，数据写入太快会导致Merge速度跟不上而报错，一般建议每秒钟发起2-3次写入操作，每次操作写入2w~5w条数据（依服务器性能而定）
+```
+
