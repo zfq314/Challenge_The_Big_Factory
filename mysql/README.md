@@ -1,3 +1,5 @@
+
+
 ##### mysql索引
 
 ```sql
@@ -629,5 +631,16 @@ join
 ```sql
 select exists (select * from t_showroom where showroom_name='fq展厅'); -- exists(true)-1/0    exists(true)-1->1 exists(true)-0->0
 select exists (select * from t_showroom where showroom_name='深圳展厅'); -- exists(true)-1/0    exists(true)-1->1 exists(true)-0->0		
+```
+
+```
+-- 中文排序的时候需要转换下编码格式解决问题
+order by xh, convert(plm using GBK); -- 按照中文字母排序
+
+--  临时表存储过程创建索引
+DROP TEMPORARY TABLE IF EXISTS $GN_LXJZ_SZLXCL_9_TXT1;
+CREATE TEMPORARY TABLE $GN_LXJZ_SZLXCL_9_TXT1 (INDEX INDEX1(CUSTOMER_IDENTITY)) AS
+INDEX INDEX1(CUSTOMER_IDENTITY) 临时表存储过程创建索引
+
 ```
 
